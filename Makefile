@@ -1,5 +1,5 @@
 CXX=g++
-CXXFLAGS=-Wall -Wextra -pedantic -std=c++17 -O0 -g
+CXXFLAGS=-Wall -Wextra -pedantic -std=c++17 -O3
 LDFLAGS=$(CXXFLAGS)
 LIBS=-pthread -lboost_system -lboost_program_options
 OBJ=$(SRC:.cc=.o)
