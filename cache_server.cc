@@ -83,10 +83,13 @@ template<
         std::cout << "\nHandling a GET request...\n";
         // http://www.martinbroadhurst.com/how-to-split-a-string-in-c.html, method 5
         std::vector<std::string> splitBody;
-        boost::split(splitBody, req.target().data(), boost::is_any_of("/"));
+        boost::split(splitBody, req.body(), boost::is_any_of("/"));
+        assert(splitBody.size() == 2 && "splitBody was the wrong size (get)\n");
         //
         Cache::size_type val_size;
-        auto result = serverCache->get(splitBody[1], val_size);
+        Cache::val_type result = serverCache->get(splitBody[1], val_size);
+        std::cout << "(Server side) The data is " << result << "\n";
+        std::cout << "Server thinks the val size is " << val_size << "\n";
         http::response<http::string_body> res{ http::status::ok, req.version() };
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
         std::string bodyMessage;
@@ -115,12 +118,18 @@ template<
         std::cout << "\nHandling a PUT request...\n";
         // http://www.martinbroadhurst.com/how-to-split-a-string-in-c.html, method 5
         std::vector<std::string> splitBody;
-        boost::split(splitBody, req.target().data(), boost::is_any_of("/"));
+        std::cout << "The server recieved this set request: " << req.body() << "\n";
+        boost::split(splitBody, req.body(), boost::is_any_of("/"));
+        assert(splitBody.size() == 4 && "splitBody was the wrong size (put)\n");
         key_type key = splitBody[1];
         Cache::val_type value = splitBody[2].c_str();
         Cache::size_type size;
+        std::cout << "Before conversion: " << splitBody[3] << "\n";
         std::stringstream ss(splitBody[3]);
         ss >> size;
+        std::cout << "Key: " << key << "\n";
+        std::cout << "Value: " << value << "\n";
+        std::cout << "Size: " << size << "\n";
         serverCache->set(key, value, size);
         http::response<http::empty_body> res{ http::status::ok, req.version() };
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
@@ -133,7 +142,8 @@ template<
         std::cout << "\nHandling a DELETE request...\n";
         // http://www.martinbroadhurst.com/how-to-split-a-string-in-c.html, method 5
         std::vector<std::string> splitBody;
-        boost::split(splitBody, req.target().data(), boost::is_any_of("/"));
+        boost::split(splitBody, req.body(), boost::is_any_of("/"));
+        assert(splitBody.size() == 2 && "splitBody was the wrong size (put)\n");
         //
         bool answer = serverCache->del(splitBody[1]);
         http::response<http::string_body> res{ http::status::ok, req.version() };
@@ -162,9 +172,10 @@ template<
         boost::split(splitBody, req.target().data(), boost::is_any_of("/"));
         
         http::response<http::empty_body> res{ http::status::ok, req.version() };
-        
+        assert(splitBody.size() == 2 && "splitBody was the wrong size (put)\n");
         if (splitBody[1] == "reset") {
             serverCache->reset();
+            assert(serverCache->space_used() == 0 && "Reset failed!\n");
         }
         else {
             res.result(http::status::not_found);
@@ -444,9 +455,9 @@ int main(int argc, char** argv) {
     std::cout << "Created cache of size " << maxmem << " with " << threads << " threads\n";
     std::cout << "Operating with address " << address << ", on port " << port << ".\n";
 
-    //FIFO_Evictor f_evictor = FIFO_Evictor();
+    FIFO_Evictor f_evictor = FIFO_Evictor();
 
-    Cache serverCache = Cache(maxmem, 0.75/*&f_evictor*/);
+    Cache serverCache = Cache(maxmem, 0.75, &f_evictor);
     Cache* s_cache = &serverCache;
 
     // The io_context is required for all I/O

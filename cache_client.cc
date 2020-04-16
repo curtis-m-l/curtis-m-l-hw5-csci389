@@ -54,12 +54,22 @@ public:
         beast::tcp_stream stream_(ioc);
         stream_.connect(results_);
 
+        //std::cout << "\n" << key << "\n";
+        //std::cout << val << "\n";
+        //std::cout << size << "\n";
+
         // Set up an HTTP SET request message
         std::string requestBody = "/" + key + "/" + val + "/" + std::to_string(size);
+        std::cout << "The client asked (set): " << requestBody << "\n";
         http::request<http::string_body> req{ http::verb::put, requestBody, HTTPVersion_ };
         req.set(http::field::host, host_);
         req.set(http::field::user_agent, BOOST_BEAST_VERSION_STRING);
+        req.set(http::field::content_type, "text/plain");
+        req.body() = requestBody;
+        std::cout << "Attempted request body: " << req.body() << "\n\n";
 
+        req.prepare_payload();
+        
         // Send the HTTP request to the remote host
         http::write(stream_, req);
 
@@ -93,7 +103,11 @@ public:
         http::request<http::string_body> req{ http::verb::get, requestBody, HTTPVersion_ };
         req.set(http::field::host, host_);
         req.set(http::field::user_agent, BOOST_BEAST_VERSION_STRING);
+        req.set(http::field::content_type, "text/plain");
+        req.body() = requestBody;
 
+        req.prepare_payload();
+        
         // Send the HTTP request to the remote host
         http::write(stream_, req);
 
@@ -111,6 +125,8 @@ public:
         stream_.socket().shutdown(tcp::socket::shutdown_both, ec);
 
         std::vector<std::string> splitBody;
+        std::cout << "The client asked: " << requestBody << "\n";
+        std::cout << "The server returned: " << res.body() << "\n";
         boost::split(splitBody, res.body(), boost::is_any_of(",:"));
         if (splitBody[0] == "NULL") {
             return nullptr;
@@ -118,13 +134,15 @@ public:
         std::string val_string = splitBody[3].substr(2, val_string.size() - 4);
         std::cout << "Made it past the first substr, which held: " << val_string << "\n";
         val_type val = val_string.c_str();  // "1000"
+        std::cout << "val: " << val << "\n";
         std::string val_size_string = splitBody[5].substr(2, val_size_string.size() - 4);
+        std::cout << "val_size_string = " << val_size_string << "\n";
         val_size = std::stoi(val_size_string);
         //boost::algorithm::trim_if(answer, isChar);
         return val;
     }
 
-    bool del(key_type key) {
+    bool del (key_type key) {
         std::cout << "\nBeginning del request...\n";
 
         //Set up a new ioc
@@ -139,6 +157,10 @@ public:
         http::request<http::string_body> req{ http::verb::delete_, requestBody, HTTPVersion_ };
         req.set(http::field::host, host_);
         req.set(http::field::user_agent, BOOST_BEAST_VERSION_STRING);
+        req.set(http::field::content_type, "text/plain");
+        req.body() = requestBody;
+        
+        req.prepare_payload();
 
         // Send the HTTP request to the remote host
         http::write(stream_, req);
@@ -174,13 +196,13 @@ public:
         auto const results_ = resolver.resolve(host_, port_);
         beast::tcp_stream stream_(ioc);
         stream_.connect(results_);
-
+        std::cout << "Generating request...\n";
         // Set up an HTTP HEAD request message
-        http::request<http::string_body> req{http::verb::head, "/", HTTPVersion_};
+        http::request<http::empty_body> req{http::verb::head, "/", HTTPVersion_};
         req.set(http::field::host, host_);
         req.set(http::field::user_agent, BOOST_BEAST_VERSION_STRING);
-        req.set(http::field::content_length, req.body().size());
 
+        std::cout << "Writing...\n";
         // Send the HTTP request to the remote host
         http::write(stream_, req);
 
@@ -190,6 +212,7 @@ public:
         // Declare a container to hold the response
         http::response<http::string_body> res;
 
+        std::cout << "Reading...\n";
         // Receive the HTTP response
         http::read(stream_, buffer, res);
 
@@ -197,7 +220,9 @@ public:
         beast::error_code ec;
         stream_.socket().shutdown(tcp::socket::shutdown_both, ec);
 
+        std::cout << "Before string conversion: " << res["Space-Used"] << "\n";
         std::string space_used_string = res["Space-Used"].data();
+        std::cout << "After conversion: " << space_used_string << "\n";
         Cache::size_type space_used_return = std::stoi(space_used_string);
         return space_used_return;
     }
@@ -213,6 +238,7 @@ public:
         beast::tcp_stream stream_(ioc);
         stream_.connect(results_);
 
+        // NOTE: Reset still uses 'target' as its request body, so it'll likely fail a lot of the time
         // Set up an HTTP POST request message
         http::request<http::string_body> req{ http::verb::post, "/reset", HTTPVersion_ };
         req.set(http::field::host, host_);
