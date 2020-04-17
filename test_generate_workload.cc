@@ -2,6 +2,9 @@
 #include <cassert>
 #include <time.h>
 #include <variant>
+#include <random>
+#include <chrono>
+#include <algorithm>
 #include "cache.hh"
 #include "evictor.hh"
 
@@ -12,6 +15,7 @@ int SETPROB = 98;   // SETPROB is 100 - (desired prob). It's the top of the rang
                     // Don't need a DELPROB, it's just in an else statement.
 std::string HOST = "127.0.0.1";
 std::string PORT = "3618";
+int CACHE_SIZE = 1024;
 
 // global_variables
 double total_gets = 0.;     // Effectively an int, but typing for division later.
@@ -24,12 +28,34 @@ std::vector<int> key_touch_count;
 
 */
 
-void 
+key_type
+select_key_get()
+{
+    std::minstd_rand0 generator(std::chrono::system_clock::now().time_since_epoch().count());
+    std::exponential_distribution<double> distribution(6);
+    auto rand_num = std::min((distribution(generator) / 2), 1.);   // Min to bound our output between 0 and 1
+    int corr_index = static_cast<int>(rand_num * keys_in_use.size());
+    assert(corr_index < static_cast<int>(keys_in_use.size()) && corr_index >= 0 && "Invalid index generated!\n");
+    return keys_in_use[corr_index];
+}
+
+key_type
+select_key_del()
+{
+    std::minstd_rand0 generator(std::chrono::system_clock::now().time_since_epoch().count());
+    std::exponential_distribution<double> distribution(6);
+    auto rand_num = 1. - (std::min((distribution(generator) / 2), 1.));   // Min to bound our output between 0 and 1
+    int corr_index = static_cast<int>(rand_num * keys_in_use.size());
+    assert(corr_index < static_cast<int>(keys_in_use.size()) && corr_index >= 0 && "Invalid index generated!\n");
+    return keys_in_use[corr_index];
+}
+
+void
 cache_set(Cache& items, key_type name, Cache::val_type data, Cache::size_type size)
 {
     std::cout << "Attempting to add item of size " << size << " ...\n";
     /* Create an item with key 'name', value 'data', and size 'size'. Add it to the cache. */
-    //Cache::val_type val = data;
+    // Cache::val_type val = data;
     items.set(name, data, size);
 }
 
@@ -46,10 +72,10 @@ cache_get(Cache& items, key_type key)
     }
     else {
         std::cout << "Falied to get " << key << "\n";
+        // TODO: Simulate backend server refilling cache?
     }
 }
 
-// 
 void 
 cache_del(Cache& items, key_type key)
 {
@@ -77,32 +103,41 @@ useRealKey(int fail_prob)
 
 // Helper for generate_request(), specifically when setting
 std::string
-generate_random_data(int length){
+generate_random_data(int& data_length_return){
+    
+    int data_length = 1;
+    int size_prob = rand() % 100;
+    if (size_prob < 95) {
+        data_length = rand() % 6 + 2;
+    }
+    else if (size_prob < 99) {
+        data_length = rand() % 35 + 10; 
+    }
+    else {
+        data_length = rand() % 15 + 100; 
+    }
+    data_length_return = data_length;
+
     std::string data = "";
-    while(length > 1) {                          //TODO: Check for null-termination
+    while(data_length > 1) {                         
         char char_ascii = rand() % 26 + 97;     //Outputs something between 'a' and 'z'.
         data.push_back(char_ascii);
-        length = length - 1;
+        data_length -= 1;
     }
-    //std::cout << data << "\n";
-    std::string test_data(data);
-    //std::cout << test_data << "\n";
-    return test_data;
+    return data;
 }
 
 // Helper for generate_request()
-std::string
+key_type
 generate_random_key(int length){
-    std::string data = "";
-    while(length > 1) {                          //TODO: Check for null-termination
-        char char_ascii = rand() % 26 + 65;     //Outputs something between 'a' and 'z'.
-        data.push_back(char_ascii);
+    std::string key = "";
+    while(length > 1) {                          
+        char char_ascii = rand() % 26 + 65;     //Outputs something between 'A' and 'Z'.
+        key.push_back(char_ascii);
         length = length - 1;
     }
-    //std::cout << data << "\n";
-    std::string test_data(data);
-    //std::cout << test_data << "\n";
-    return test_data;
+    key_type return_key(key);
+    return return_key;
 }
 
 // Helper for generate_request()
@@ -121,6 +156,7 @@ generate_request()
     std::cout << "Generating new request!\n";
     std::vector<std::variant<std::string, int>> random_request;
     int op_prob = rand() % 100;
+
     /*
     Probability Details:
     Total range: 0-99
@@ -128,122 +164,97 @@ generate_request()
     GETPROB <-> (SETPROB - 1): Delete
     SETPROB <-> 99: Set
     */
+
     std::cout << "Choosing a request type...\n";
     if (op_prob < GETPROB) {
-        // Get
+        ////////////////////////////////////////////////////////////// GET
         std::cout << "Making a get request!\n";
-        int fail_prob = 0;
+
+        random_request.push_back("get");
+        int fail_prob = 10;
+
         if (useRealKey(fail_prob)){
-            key_type active_key = select_key();
-
-            random_request.push_back("get");
+            key_type active_key = select_key_get();
             random_request.push_back(active_key);
-
-            return random_request;
         }
         else {
             // Return a request to get a dummy key (which will never exist in the cache)
             std::string dummy_key = "-A";
-
-            random_request.push_back("get");
             random_request.push_back(dummy_key);
-
-            return random_request;
         }
+        return random_request;
     }
-    else if (op_prob > SETPROB) {       // Note that this is >, not <
-        // Set
+
+    else if (op_prob > SETPROB) { // Note that this is >, not <
+        /////////////////////////////////////////////////////////////// SET
         std::cout << "Making a set request!\n";
-        int data_length = 0;
-        int size_prob = rand() % 100;
-        if (size_prob < 85) {
-            data_length = rand() % 6 + 2;
-        }
-        else if (size_prob < 98) {
-            data_length = rand() % 35 + 10;
-        }
-        else {
-            data_length = rand() % 15 + 100;
-        }
-        std::string rand_data = generate_random_data (data_length);
+        int data_length;
+        std::string rand_data = generate_random_data (data_length); // NOTE: Takes a reference variable for data_length
         
+        random_request.push_back("set");
+        random_request.push_back(rand_data);
 
         int fail_prob = 2;
+        key_type set_key;
+
         if (useRealKey(fail_prob)) {
             // Select a key from our list to set the value of (frequency distribution?)
-            key_type active_key = select_key();
-            
-            random_request.push_back("set");
-            random_request.push_back(rand_data);
-            random_request.push_back(active_key);
-            random_request.push_back(data_length);
-
-            return random_request;
+            set_key = select_key_get();           
         }
         else {
             // Return a request to set a brand new key, and add that key to our list.
-            std::string new_key = generate_random_key(8);
-
-            random_request.push_back("set");
-            random_request.push_back(new_key);
-            random_request.push_back(rand_data);
-            random_request.push_back(data_length);
-
-            keys_in_use.push_back(new_key);
-            
-            return random_request;
+            set_key = generate_random_key(8);
+            keys_in_use.push_back(set_key);
         }
+
+        random_request.push_back(set_key);
+        random_request.push_back(data_length);
+        return random_request;
     }
     else {
-        // Delete
+        ///////////////////////////////////////////////////////////// DEL
         std::cout << "Making a delete request!\n";
-        int fail_prob = 75;
+
+        int fail_prob = 90;
+        random_request.push_back("delete");
+
         if (useRealKey(fail_prob)) {
             // Select a key from our list to delete (frequency distribution?)
-            key_type active_key = select_key();
-
-            random_request.push_back("delete");
+            key_type active_key = select_key_del();
             random_request.push_back(active_key);
-
-            return random_request;
         }
         else {
             // Return a request to delete a non-existant key
             std::string dummy_key = "-A";
-
-            random_request.push_back("delete");
             random_request.push_back(dummy_key);
-
-            return random_request;
         }
+        return random_request;
     }
 }
 
 void
 cache_warmup(Cache& items) {
     // Set a bunch of values to the cache, to fill it up
-    int data_length;
-    for(int i = 0; i < 100; i++) {
-        int size_prob = rand() % 100;
-        if (size_prob < 95) {
-            data_length = rand() % 6 + 2;
-        }
-        else if (size_prob < 99) {
-            data_length = rand() % 35 + 10;
+    int size_of_data_generated = 0;
+    while (size_of_data_generated < CACHE_SIZE) {
+        
+        int set_chance = rand() % 100; // 10% chance to get instead of get (out of ~200 requests)
+        if (set_chance > 10) {
+            int data_length;
+            std::string test_data = generate_random_data (data_length); // NOTE: Takes a reference variable for data_length
+            key_type new_key = generate_random_key(10);
+            Cache::val_type rand_data = test_data.c_str();
+
+            cache_set(items, new_key, rand_data, data_length);
+
+            size_of_data_generated += data_length;
+            keys_in_use.push_back(new_key);
+            key_touch_count.push_back(1);
         }
         else {
-            data_length = rand() % 15 + 100;
+            key_type key = select_key_get();
+            cache_get(items, key);
         }
-        std::string test_data = generate_random_data (data_length);
-        Cache::val_type rand_data = test_data.c_str();
-        //std::cout << rand_data << "\n";
-
-        key_type new_key = generate_random_key(10);
-
-        cache_set(items, new_key, rand_data, data_length);
-
-        keys_in_use.push_back(new_key);
-        key_touch_count.push_back(1);
     }
     std::cout << "Warmup Complete\n";
     return;
@@ -285,7 +296,6 @@ int main()
             cache_del(items, key);
         }
     }
-    
     if (total_gets == 0) {
     std::cout << "There were no gets\n";
     }

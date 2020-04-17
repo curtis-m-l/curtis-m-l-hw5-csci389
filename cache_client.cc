@@ -64,12 +64,13 @@ public:
         http::request<http::string_body> req{ http::verb::put, requestBody, HTTPVersion_ };
         req.set(http::field::host, host_);
         req.set(http::field::user_agent, BOOST_BEAST_VERSION_STRING);
+        // *Changed:
         req.set(http::field::content_type, "text/plain");
         req.body() = requestBody;
         std::cout << "Attempted request body: " << req.body() << "\n\n";
 
         req.prepare_payload();
-        
+        // *End of changes
         // Send the HTTP request to the remote host
         http::write(stream_, req);
 
@@ -103,11 +104,12 @@ public:
         http::request<http::string_body> req{ http::verb::get, requestBody, HTTPVersion_ };
         req.set(http::field::host, host_);
         req.set(http::field::user_agent, BOOST_BEAST_VERSION_STRING);
+        // *Changes:
         req.set(http::field::content_type, "text/plain");
         req.body() = requestBody;
 
         req.prepare_payload();
-        
+        // *End of changes
         // Send the HTTP request to the remote host
         http::write(stream_, req);
 
@@ -131,14 +133,13 @@ public:
         if (splitBody[0] == "NULL") {
             return nullptr;
         }
-        std::string val_string = splitBody[3].substr(2, val_string.size() - 4);
+        std::string val_string = splitBody[3].substr(2, splitBody[3].size() - 3); // Changed
         std::cout << "Made it past the first substr, which held: " << val_string << "\n";
         val_type val = val_string.c_str();  // "1000"
         std::cout << "val: " << val << "\n";
-        std::string val_size_string = splitBody[5].substr(2, val_size_string.size() - 4);
+        std::string val_size_string = splitBody[5].substr(2, splitBody[5].size() - 3); // Changed
         std::cout << "val_size_string = " << val_size_string << "\n";
         val_size = std::stoi(val_size_string);
-        //boost::algorithm::trim_if(answer, isChar);
         return val;
     }
 
@@ -157,11 +158,12 @@ public:
         http::request<http::string_body> req{ http::verb::delete_, requestBody, HTTPVersion_ };
         req.set(http::field::host, host_);
         req.set(http::field::user_agent, BOOST_BEAST_VERSION_STRING);
+        // *Changed:
         req.set(http::field::content_type, "text/plain");
         req.body() = requestBody;
         
         req.prepare_payload();
-
+        // *End of changes
         // Send the HTTP request to the remote host
         http::write(stream_, req);
 
@@ -196,12 +198,15 @@ public:
         auto const results_ = resolver.resolve(host_, port_);
         beast::tcp_stream stream_(ioc);
         stream_.connect(results_);
+        //Print is new
         std::cout << "Generating request...\n";
         // Set up an HTTP HEAD request message
-        http::request<http::empty_body> req{http::verb::head, "/", HTTPVersion_};
+        http::request<http::string_body> req{http::verb::head, "/", HTTPVersion_};
         req.set(http::field::host, host_);
         req.set(http::field::user_agent, BOOST_BEAST_VERSION_STRING);
-
+        req.set(http::field::content_length, req.body().size());
+        req.prepare_payload();
+        //Print is new
         std::cout << "Writing...\n";
         // Send the HTTP request to the remote host
         http::write(stream_, req);
@@ -220,8 +225,10 @@ public:
         beast::error_code ec;
         stream_.socket().shutdown(tcp::socket::shutdown_both, ec);
 
+        //Print is new
         std::cout << "Before string conversion: " << res["Space-Used"] << "\n";
         std::string space_used_string = res["Space-Used"].data();
+        //Print is new
         std::cout << "After conversion: " << space_used_string << "\n";
         Cache::size_type space_used_return = std::stoi(space_used_string);
         return space_used_return;
@@ -243,6 +250,9 @@ public:
         http::request<http::string_body> req{ http::verb::post, "/reset", HTTPVersion_ };
         req.set(http::field::host, host_);
         req.set(http::field::user_agent, BOOST_BEAST_VERSION_STRING);
+        req.body() = "/reset";
+        req.set(http::field::content_length, req.body().size());
+        req.prepare_payload();
 
         // Send the HTTP request to the remote host
         http::write(stream_, req);
@@ -254,7 +264,7 @@ public:
         http::response<http::empty_body> res;
 
         // Receive the HTTP response
-        http::read(stream_, buffer, res); //PROBLEM SPOT
+        http::read(stream_, buffer, res);
 
         beast::error_code ec;
         stream_.socket().shutdown(tcp::socket::shutdown_both, ec);

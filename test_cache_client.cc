@@ -33,8 +33,8 @@ void cache_set(Cache& items, Cache::val_type data, std::string name, Cache::size
 void cache_get(Cache& items, key_type key, Cache::size_type& itemSize, Cache::size_type target_size)
 {
     Cache::val_type got_item = items.get(key, itemSize);
-    std::cout << "Retrieved Item: " << got_item << "\n";
-    std::cout << "Item size:" << itemSize << "\n";
+    // std::cout << "Retrieved Item: " << got_item << "\n";
+    // std::cout << "Item size:" << itemSize << "\n";
     assert(got_item != nullptr && "Cache could not retrieve requested item!\n");
     assert(itemSize == target_size && "get() did not update size of its second param correctly!\n");
     std::cout << key << " gotten successfully.\n";
@@ -300,14 +300,14 @@ void test_size_zero_does_not_evict() {
 */
 int main()
 {
-    test_reduction();
+    //test_reduction();
     test_basic_operation();
     test_modify_value();
     test_set_object_cache_size();
     test_cache_bounds();
     test_overflow_no_evictor();
     test_get_non_existant_item();
-
+    
     //test_basic_evictor();
     //test_cache_bounds_with_evictor();
     //test_unnecessary_eviction();

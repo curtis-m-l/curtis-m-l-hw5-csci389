@@ -18,7 +18,7 @@
 #include <vector>
 #include <sstream>
 #include "cache.hh"
-#include "fifo_evictor.hh"
+#include "lru_evictor.hh"
 
 namespace beast = boost::beast;         // from <boost/beast.hpp>
 namespace http = beast::http;           // from <boost/beast/http.hpp>
@@ -75,6 +75,7 @@ template<
         //auto const size = res.body().size();
         //res.content_length(size);
         res.keep_alive(req.keep_alive());
+        res.prepare_payload();
         return send(std::move(res));
     }
 
@@ -83,13 +84,14 @@ template<
         std::cout << "\nHandling a GET request...\n";
         // http://www.martinbroadhurst.com/how-to-split-a-string-in-c.html, method 5
         std::vector<std::string> splitBody;
-        boost::split(splitBody, req.body(), boost::is_any_of("/"));
+        boost::split(splitBody, req.body(), boost::is_any_of("/")); // Uses body now
         assert(splitBody.size() == 2 && "splitBody was the wrong size (get)\n");
         //
         Cache::size_type val_size;
         Cache::val_type result = serverCache->get(splitBody[1], val_size);
-        std::cout << "(Server side) The data is " << result << "\n";
-        std::cout << "Server thinks the val size is " << val_size << "\n";
+        std::cout << "Server thinks the key is: " << splitBody[1] << "\n";
+        std::cout << "Server thinks the data is: " << result << "\n";
+        std::cout << "Server thinks the val size is: " << val_size << "\n";
         http::response<http::string_body> res{ http::status::ok, req.version() };
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
         std::string bodyMessage;
@@ -110,6 +112,7 @@ template<
         auto const size = bodyMessage.size();
         res.content_length(size);
         res.keep_alive(req.keep_alive());
+        res.prepare_payload();
         return send(std::move(res));
     }
 
@@ -119,21 +122,26 @@ template<
         // http://www.martinbroadhurst.com/how-to-split-a-string-in-c.html, method 5
         std::vector<std::string> splitBody;
         std::cout << "The server recieved this set request: " << req.body() << "\n";
-        boost::split(splitBody, req.body(), boost::is_any_of("/"));
+        boost::split(splitBody, req.body(), boost::is_any_of("/")); // Uses body now
         assert(splitBody.size() == 4 && "splitBody was the wrong size (put)\n");
-        key_type key = splitBody[1];
-        Cache::val_type value = splitBody[2].c_str();
         Cache::size_type size;
         std::cout << "Before conversion: " << splitBody[3] << "\n";
         std::stringstream ss(splitBody[3]);
         ss >> size;
-        std::cout << "Key: " << key << "\n";
-        std::cout << "Value: " << value << "\n";
+        std::cout << "Key: " << splitBody[1] << "\n";
+        std::cout << "Value: " << splitBody[2].c_str() << "\n";
         std::cout << "Size: " << size << "\n";
-        serverCache->set(key, value, size);
+        serverCache->set(splitBody[1], splitBody[2].c_str(), size);
+
+        // Test:
+        Cache::size_type gotten_size;
+        Cache::val_type gotten_data = serverCache->get(splitBody[1], gotten_size);
+        assert(gotten_data == splitBody[2].c_str() && gotten_size == size && "Set was bad!\n");
+
         http::response<http::empty_body> res{ http::status::ok, req.version() };
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
         res.keep_alive(req.keep_alive());
+        res.prepare_payload();
         return send(std::move(res));
     }
 
@@ -161,6 +169,7 @@ template<
         res.body() = bodyMessage;
         res.content_length(bodyMessage.size());
         res.keep_alive(req.keep_alive());
+        res.prepare_payload();
         return send(std::move(res));
     }
 
@@ -169,7 +178,7 @@ template<
         std::cout << "\nHandling a POST request...\n";
         // http://www.martinbroadhurst.com/how-to-split-a-string-in-c.html, method 5
         std::vector<std::string> splitBody;
-        boost::split(splitBody, req.target().data(), boost::is_any_of("/"));
+        boost::split(splitBody, req.body(), boost::is_any_of("/"));
         
         http::response<http::empty_body> res{ http::status::ok, req.version() };
         assert(splitBody.size() == 2 && "splitBody was the wrong size (put)\n");
@@ -183,6 +192,7 @@ template<
         
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
         res.keep_alive(req.keep_alive());
+        res.prepare_payload();
         return send(std::move(res));
     }
 }
@@ -455,9 +465,11 @@ int main(int argc, char** argv) {
     std::cout << "Created cache of size " << maxmem << " with " << threads << " threads\n";
     std::cout << "Operating with address " << address << ", on port " << port << ".\n";
 
-    FIFO_Evictor f_evictor = FIFO_Evictor();
+    // Evictor implementation is new
+    // FIFO_Evictor f_evictor = FIFO_Evictor();
+    LRU_Evictor lru_evictor = LRU_Evictor();
 
-    Cache serverCache = Cache(maxmem, 0.75, &f_evictor);
+    Cache serverCache = Cache(maxmem, 0.75, &lru_evictor);
     Cache* s_cache = &serverCache;
 
     // The io_context is required for all I/O
