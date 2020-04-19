@@ -18,7 +18,7 @@
 #include <vector>
 #include <sstream>
 #include "cache.hh"
-#include "lru_evictor.hh"
+#include "LRU_Evictor.hh"
 
 namespace beast = boost::beast;         // from <boost/beast.hpp>
 namespace http = beast::http;           // from <boost/beast/http.hpp>
@@ -89,9 +89,9 @@ template<
         //
         Cache::size_type val_size;
         Cache::val_type result = serverCache->get(splitBody[1], val_size);
-        std::cout << "Server thinks the key is: " << splitBody[1] << "\n";
-        std::cout << "Server thinks the data is: " << result << "\n";
-        std::cout << "Server thinks the val size is: " << val_size << "\n";
+        //std::cout << "Server thinks the key is: " << splitBody[1] << "\n";
+        //std::cout << "Server thinks the data is: " << result << "\n";
+        //std::cout << "Server thinks the val size is: " << val_size << "\n";
         http::response<http::string_body> res{ http::status::ok, req.version() };
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
         std::string bodyMessage;
@@ -102,12 +102,13 @@ template<
             std::string gotValue = result;
             bodyMessage = std::string("\"key\": \"") + 
                           splitBody[1] + 
-                          std::string("\", \"value\": \"" + 
-                          std::string(result)) + 
-                          std::string("\", \"size\": \"" +
-                          std::to_string(val_size)) +
+                          std::string("\", \"value\": \"") + 
+                          gotValue + 
+                          std::string("\", \"size\": \"") +
+                          std::to_string(val_size) +
                           std::string("\"");
         }
+        std::cout << "Sending this back: " << bodyMessage << "\n";
         res.body() = bodyMessage;
         auto const size = bodyMessage.size();
         res.content_length(size);
@@ -128,16 +129,20 @@ template<
         std::cout << "Before conversion: " << splitBody[3] << "\n";
         std::stringstream ss(splitBody[3]);
         ss >> size;
+        Cache::val_type val = splitBody[2].c_str();
         std::cout << "Key: " << splitBody[1] << "\n";
-        std::cout << "Value: " << splitBody[2].c_str() << "\n";
+        std::cout << "Value: " << val << "\n";
         std::cout << "Size: " << size << "\n";
-        serverCache->set(splitBody[1], splitBody[2].c_str(), size);
+        serverCache->set(splitBody[1], val, size);
 
         // Test:
         Cache::size_type gotten_size;
-        Cache::val_type gotten_data = serverCache->get(splitBody[1], gotten_size);
+        std::cout << "Testing get in set function!\n";
+        std::string gotten_data( serverCache->get(splitBody[1], gotten_size) );
+        //std::cout << "Got data! " << gotten_data << "\n";
+        //std::cout << "Got size! " << gotten_size << "\n";
         assert(gotten_data == splitBody[2].c_str() && gotten_size == size && "Set was bad!\n");
-
+         
         http::response<http::empty_body> res{ http::status::ok, req.version() };
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
         res.keep_alive(req.keep_alive());

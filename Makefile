@@ -28,8 +28,8 @@ clean:
 	rm -rf *.o test_cache_client test_cache_lib test_evictors cache_server test_workload
 
 test: all
-	./test_cache_lib
 	./test_evictors
+	./test_cache_lib
 	echo "test_cache_client must be run manually against a running server"
 
 valgrind: all

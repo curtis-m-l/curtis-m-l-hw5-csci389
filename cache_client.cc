@@ -23,6 +23,7 @@ public:
     std::string host_;
     std::string port_;
     unsigned HTTPVersion_ = 11;
+    std::string get_val_;
     //beast::tcp_stream* stream_ ;
     //boost::asio::ip::basic_resolver_results<tcp>  results_;
 
@@ -45,7 +46,7 @@ public:
 
     void set(key_type key, val_type val, size_type size) {
 
-        std::cout << "\nBeginning set request...\n";
+        //std::cout << "\nBeginning set request...\n";
 
         //Set up a new ioc and stream
         net::io_context ioc;
@@ -60,14 +61,14 @@ public:
 
         // Set up an HTTP SET request message
         std::string requestBody = "/" + key + "/" + val + "/" + std::to_string(size);
-        std::cout << "The client asked (set): " << requestBody << "\n";
+        //std::cout << "The client asked (set): " << requestBody << "\n";
         http::request<http::string_body> req{ http::verb::put, requestBody, HTTPVersion_ };
         req.set(http::field::host, host_);
         req.set(http::field::user_agent, BOOST_BEAST_VERSION_STRING);
         // *Changed:
         req.set(http::field::content_type, "text/plain");
         req.body() = requestBody;
-        std::cout << "Attempted request body: " << req.body() << "\n\n";
+        //std::cout << "Attempted request body: " << req.body() << "\n\n";
 
         req.prepare_payload();
         // *End of changes
@@ -127,18 +128,20 @@ public:
         stream_.socket().shutdown(tcp::socket::shutdown_both, ec);
 
         std::vector<std::string> splitBody;
-        std::cout << "The client asked: " << requestBody << "\n";
+        //std::cout << "The client asked: " << requestBody << "\n";
         std::cout << "The server returned: " << res.body() << "\n";
         boost::split(splitBody, res.body(), boost::is_any_of(",:"));
         if (splitBody[0] == "NULL") {
             return nullptr;
         }
-        std::string val_string = splitBody[3].substr(2, splitBody[3].size() - 3); // Changed
-        std::cout << "Made it past the first substr, which held: " << val_string << "\n";
-        val_type val = val_string.c_str();  // "1000"
-        std::cout << "val: " << val << "\n";
+        get_val_ = "";
+        get_val_ = splitBody[3].substr(2, splitBody[3].size() - 3); // Changed
+        //std::cout << "Made it past the first substr, which held: " << get_val_ << "\n";
+
+        val_type val = get_val_.c_str();  // "1000"
+        //std::cout << "val: " << val << "\n";
         std::string val_size_string = splitBody[5].substr(2, splitBody[5].size() - 3); // Changed
-        std::cout << "val_size_string = " << val_size_string << "\n";
+        //std::cout << "val_size_string = " << val_size_string << "\n";
         val_size = std::stoi(val_size_string);
         return val;
     }

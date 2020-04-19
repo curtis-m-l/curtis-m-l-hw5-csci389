@@ -4,10 +4,11 @@
  */
 
  /*
-   CREDIT TO: Reilly and James, who wer kind enough to let us use their code
+   CREDIT TO: Reilly and James, who were kind enough to let us use their code
  */
 
 #pragma once
+#include <unordered_map>
 #include "evictor.hh"
 #include "LList.hh"
 #include "cache.hh"

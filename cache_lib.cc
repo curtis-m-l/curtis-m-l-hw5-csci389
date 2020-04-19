@@ -1,5 +1,6 @@
 #include <unordered_map>
 #include <iostream>
+#include <cassert>
 
 #include "cache.hh"
 #include "fifo_evictor.hh"
@@ -13,8 +14,9 @@ class Cache::Impl {
 public:
   //Our data members:
   size_type m_current_mem;
-  std::unordered_map<key_type, val_type, hash_func> m_cache_vals;
+  std::unordered_map<key_type, std::string, hash_func> m_cache_vals;
   std::unordered_map<key_type, size_type, hash_func> m_cache_sizes;
+  std::string get_val_;
 
   // Initial data members/functions:
   size_type m_maxmem;
@@ -26,7 +28,9 @@ public:
 
   void set(key_type key, val_type val, size_type size) {
     // If data is larger than cache capacity
+    std::cout << "Doing a set!\n";
     if (size > m_maxmem) {
+      std::cout << "It don't fit.\n"; 
       return;
     }
     // If value we're emplacing already exists, calculate the size change
@@ -35,23 +39,29 @@ public:
     if (existing_value != m_cache_vals.end()) {
       actual_size = size - m_cache_sizes.find(key)->second;
     }
+    std::cout << "Val: " << val << "\n";
+    assert (val != NULL && "String was null :/ \n");
+
+    std::string val_string(val);
+    std::cout << "Made it out!\n";
     // If it fits, add it to the cache 
     if (m_current_mem + actual_size <= m_maxmem) {
-      if (existing_value == m_cache_vals.end()){
-        m_cache_vals.emplace(key, val);
-        m_cache_sizes.emplace(key, size);
-      }
-      else {
-        //https://stackoverflow.com/questions/16291897/in-unordered-map-of-c11-how-to-update-the-value-of-a-particular-key
-        existing_value->second = val;
-        auto existing_size = m_cache_sizes.find(key);
-        existing_size->second = size;
-      }
-      m_current_mem += actual_size;
-      // Let the eviction policy know about the new item
-      if (m_evictor != nullptr) {
-        m_evictor->touch_key(key);
-      }
+
+        if (existing_value == m_cache_vals.end()) {
+            m_cache_vals.emplace(key, val_string);
+            m_cache_sizes.emplace(key, size);
+        }
+        else {
+            //https://stackoverflow.com/questions/16291897/in-unordered-map-of-c11-how-to-update-the-value-of-a-particular-key
+            existing_value->second = val_string;
+            auto existing_size = m_cache_sizes.find(key);
+            existing_size->second = size;
+        }
+        m_current_mem += actual_size;
+        // Let the eviction policy know about the new item
+        if (m_evictor != nullptr) {
+            m_evictor->touch_key(key);
+        }
     }
     else {
       // If we have no eviction policy, reject it
@@ -72,12 +82,12 @@ public:
         // that the data can fit in our cache. Restructuring of this code could yield
         // more optimal performance, but this should still be correct.
         if (existing_value == m_cache_vals.end()) {
-            m_cache_vals.emplace(key, val);
+            m_cache_vals.emplace(key, val_string);
             m_cache_sizes.emplace(key, size);
         }
         else {
             //https://stackoverflow.com/questions/16291897/in-unordered-map-of-c11-how-to-update-the-value-of-a-particular-key
-            existing_value->second = val;
+            existing_value->second = val_string;
             auto existing_size = m_cache_sizes.find(key);
             existing_size->second = size;
         }
@@ -90,13 +100,18 @@ public:
   val_type get(key_type key, size_type& val_size) {
     auto toRe = m_cache_vals.find(key);
     if (toRe == m_cache_vals.end()) {
-      return nullptr;
+        return nullptr;
     }
     if (m_evictor != nullptr) {
-      m_evictor->touch_key(key);
+        m_evictor->touch_key(key);
     }
+    get_val_ = toRe->second;
+    //std::cout << "get_val_: " << get_val_ << "\n";
     val_size = m_cache_sizes.find(key)->second;
-    return static_cast<val_type>(toRe->second);
+    //std::cout << "val_size: " << val_size << "\n";
+    //std::cout << "After conversion: " << static_cast<val_type>(get_val_.c_str()) << "\n";
+    std::cout << "Made it to get return!\n";
+    return static_cast<val_type>(get_val_.c_str());
   }
 
   bool del(key_type key) {
@@ -132,7 +147,7 @@ Cache::Cache(size_type maxmem,
   pImpl_->m_maxmem = maxmem;
   pImpl_->m_evictor = evictor;
   pImpl_->m_current_mem = 0;
-  std::unordered_map<key_type, val_type, hash_func> cache_vals(0, hasher);
+  std::unordered_map<key_type, std::string, hash_func> cache_vals(0, hasher);
   std::unordered_map<key_type, size_type, hash_func> cache_sizes(0, hasher);
   cache_vals.max_load_factor(max_load_factor);
   cache_sizes.max_load_factor(max_load_factor);
