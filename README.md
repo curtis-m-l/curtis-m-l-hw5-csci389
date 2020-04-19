@@ -45,7 +45,7 @@
 	displayed graph has cropped off some of the extreme outliers in the 10-17 millisecond 
 	range, as they condensed the data and made trends harder to discern.
 
-	// Graph Here
+	![](FILE%20NAME%20HERE)
 	
 	One notable feature about this graph is its slope as the request time rises. A lot of
 	requests took very little time, being retrieved in half a second or less. Between that
