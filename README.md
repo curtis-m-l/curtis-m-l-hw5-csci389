@@ -45,7 +45,7 @@
 	displayed graph has cropped off some of the extreme outliers in the 10-17 millisecond 
 	range, as they condensed the data and made trends harder to discern.
 
-![](Graph_image.png)
+	![](Graph_image.png)
 	
 	One notable feature about this graph is its slope as the request time rises. A lot of
 	requests took very little time, being retrieved in half a second or less. Between that
@@ -119,12 +119,12 @@
 
 	Across the board, FIFO_Evictor was slower than LRU, but not very. 
 	And Get Hit Rate, the value we expected to change most significantly, was 
-	completely unaffected by the change. This lack of response to likely due 
+	completely unaffected by the change. This lack of response is likely due 
 	to our low rate of sets, which only comprise 2% of all requests, and only 
 	3% of which are new keys. Even over 50,000 requests, the amount of values 
 	evicted from the cache would be relatively low. Even though our 'popular' 
 	values are set first and are therefore the most likely to be evicted, the 
-	rate is low enough to negligable.
+	rate is low enough to negligible.
 
 ### Maximum Cache Memory
 
@@ -210,5 +210,5 @@
 		worse than both the baseline and 'Os'. This result is wholly unexpected.
 		According to gnu's own documentation: https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html
 		'Ofast' is "not valid for all standard-compliant programs", and we assume that this significant 
-		speed decrease is the result of an incompatiability between the Ofast flags and one or more of our 
+		speed decrease is the result of an incompatibility between the Ofast flags and one or more of our 
 		included libraries.
